@@ -93,10 +93,15 @@ restaurant_recommender/
 │   └── state_manager.py # Conversation state management
 ├── integrations/        # External service integrations
 │   └── google_places.py # Google Places API wrapper
-├── test/                # Test suite (organized & verified)
-│   ├── test_debug.py    # Conversation flow tests ✅
-│   ├── test_debug2.py   # State management tests ✅
-│   └── test_input.txt   # End-to-end CLI test inputs ✅
+├── test/                # Test suite (comprehensive & all passing ✅)
+│   ├── test_distance_confirmation.py       # Distance confirmation feature (3 tests) ✅
+│   ├── test_restaurant_suggestions.py      # Restaurant suggestions & cuisine changes (4 tests) ✅
+│   ├── test_cuisine_composition_change.py  # Cuisine change during composition (1 test) ✅
+│   ├── test_debug.py                       # Conversation flow verification ✅
+│   ├── test_debug2.py                      # State management verification ✅
+│   ├── test_input.txt                      # End-to-end CLI test inputs ✅
+│   ├── README.md                           # Test documentation
+│   └── SETUP_COMPLETE.md                   # Setup verification guide
 ├── Pipfile              # Dependency management
 └── main.py              # Main entry point for demo
 ```
@@ -130,15 +135,52 @@ All 10 specialized agents have been upgraded from `gemini-2.0-flash` to `gemini-
 - Faster inference times
 - Better error handling and edge cases
 
-**Test Suite - All Tests Passing:**
+### Recent Bug Fixes (December 2025)
+
+**Bug #1: Distance Feedback Misinterpretation** ✅ FIXED
+
+- **Issue**: "Nah, its too far" was being interpreted as budget feedback instead of distance feedback
+- **Root Cause**: System jumped directly from energy→budget without distance confirmation step
+- **Solution**: Added `confirm_distance()` step with dedicated distance parsing and validation
+- **Result**: Users can now accept, reject, or propose custom distances (500m-25km)
+
+**Bug #2: Restaurant Suggestion Not Recognized** ✅ FIXED
+
+- **Issue**: During discovery, system looped saying "couldn't find Thai restaurants" without options
+- **Root Cause**: No handling for cuisine changes or restaurant suggestions during discovery/composition
+- **Solution**:
+  - Enhanced `_discover_restaurants()` with cuisine change detection
+  - Enhanced `_handle_user_choice()` with alternative detection
+  - Added `_compose_recommendations()` cuisine change check
+- **Result**: Users can now change cuisine at any phase, search for specific restaurants, and get helpful suggestions
+
+**Test Suite - All Tests Passing (8 Test Files, 11 Test Scenarios):**
 
 The complete test suite has been organized in the `/test/` folder and is fully validated:
 
+**Core Bug Fix Tests:**
+
+- ✅ **test_distance_confirmation.py** (3 tests): Distance confirmation feature
+  - Test 1: Distance rejection workflow with custom proposal
+  - Test 2: Direct distance acceptance
+  - Test 3: Distance with km unit parsing
+
+- ✅ **test_restaurant_suggestions.py** (4 tests): Restaurant suggestions & cuisine changes
+  - Test 1: Cuisine change during recommendations phase
+  - Test 2: Specific restaurant search
+  - Test 3: No results with helpful suggestions
+  - Test 4: Invalid input recovery
+
+- ✅ **test_cuisine_composition_change.py** (1 test): Cuisine change during composition
+  - Test: User can change cuisine before recommendations display
+
+**Integration Tests:**
+
 - ✅ **test_debug.py**: Conversation flow verification (6 steps)
-- ✅ **test_debug2.py**: State management verification (7 steps)  
+- ✅ **test_debug2.py**: State management verification (7 steps)
 - ✅ **test_input.txt**: End-to-end CLI test with real data
 
-All tests pass with 100% success rate using real Google Places API data.
+**All 11 tests pass with 100% success rate using real Google Places API data.**
 
 ### 1. Conversation Flow
 
@@ -341,17 +383,28 @@ Thank you for using the Restaurant Recommender!
 **Run All Tests:**
 
 ```bash
-# Test 1: Conversation Flow
-pipenv run python test/test_debug.py
+# Bug Fix Tests
+pipenv run python test/test_distance_confirmation.py
+pipenv run python test/test_restaurant_suggestions.py
+pipenv run python test/test_cuisine_composition_change.py
 
-# Test 2: State Management
+# Integration Tests
+pipenv run python test/test_debug.py
 pipenv run python test/test_debug2.py
 
-# Test 3: End-to-End CLI (Automated Input)
+# End-to-End CLI (Automated Input)
 timeout 30 bash -c 'cat test/test_input.txt | pipenv run python main.py'
 ```
 
-**Test Results** (All ✅ PASSING):
+**Test Results** (All 11 tests ✅ PASSING):
+
+**Bug Fix Tests:**
+
+- test_distance_confirmation.py: 3 tests - Distance confirmation feature verification
+- test_restaurant_suggestions.py: 4 tests - Restaurant suggestions & cuisine change verification
+- test_cuisine_composition_change.py: 1 test - Cuisine change during composition verification
+
+**Integration Tests:**
 
 - test_debug.py: Verifies conversation routing through 6 steps
 - test_debug2.py: Verifies state persistence through 7 steps  
