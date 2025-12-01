@@ -71,7 +71,7 @@ This project implements a restaurant recommendation pipeline using multiple spec
 
 ```bash
 # Step 1: Navigate to project directory
-cd /Users/michael_x/workstation/capstone_project/restaurant_recommender
+cd ./restaurant_recommender
 
 # Step 2: Install dependencies via Pipenv
 pipenv install
