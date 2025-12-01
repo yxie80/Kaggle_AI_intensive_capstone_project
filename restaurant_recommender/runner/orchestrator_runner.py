@@ -1,5 +1,3 @@
-"""Main orchestrator runner for the restaurant recommendation system"""
-
 import asyncio
 from typing import Dict, Any, Optional
 from agents.orchestrator_agent import orchestrator_agent
@@ -46,9 +44,9 @@ class OrchestratorRunner:
             "user_id": user_id,
             "status": "started",
             "environment": env_data,
-            "message": f"Hi! I'm your restaurant recommender. You're reaching me on a {env_data['weekday']} at {env_data['local_time']}. "  #TODO: Asking customer if they want to use current time/location
+            "message": f"Hi! I'm your restaurant recommender. You're reaching me on a {env_data['weekday']} at {env_data['local_time']}. "
                       f"To help you find the perfect restaurant, I need to ask you a few things. First, what's your location (city or coordinates)?",
-            "next_step": "collect_location" #TODO: why do we use next_step? rahther than chain up agents. ?
+            "next_step": "collect_location" 
         }
         
         return response
@@ -68,7 +66,9 @@ class OrchestratorRunner:
         if not state:
             return {"error": "Context not found"}
         
-        # Route based on current conversation stage #TODO: refactor to use state machine pattern or sequential agent chaining
+        # Route based on explicit state machine pattern with next_step routing
+        # This design is preferred for user-interactive multi-turn conversations over agent chaining
+        # See README section "Architecture: next_step Pattern vs. Agent Chaining" for detailed rationale
         if not state.location:
             return await self._collect_location(state, user_message)
         
@@ -191,22 +191,40 @@ class OrchestratorRunner:
     
     async def _collect_budget_group(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
         """Collect budget and group size with natural language"""
-        parts = user_message.lower().split()
+        message_lower = user_message.lower()
         
-        # Enhanced budget keyword mapping
-        budget_keywords = {
-            "cheap": 1, "budget": 1, "$": 1, "affordable": 1, "casual": 1, "quick": 1,
-            "mid": 2, "moderate": 2, "$$": 2, "comfortable": 2, "normal": 2, "regular": 2,
-            "upscale": 3, "$$$": 3, "nice": 3, "good": 3,
-            "fancy": 4, "expensive": 4, "$$$$": 4, "special": 4, "splurge": 4
-        }
+        # Multi-word budget patterns (checked first)
+        budget_patterns = [
+            (["mid-range", "midrange", "mid range"], 2),
+            (["casual", "budget", "affordable", "cheap"], 1),
+            (["upscale", "fancy", "expensive", "special", "splurge"], 3),
+            (["moderate", "comfortable", "normal", "regular"], 2),
+        ]
         
-        # Find budget from keywords
+        # Check multi-word patterns
         budget = None
-        for part in parts:
-            if part in budget_keywords:
-                budget = budget_keywords[part]
+        for keywords, budget_level in budget_patterns:
+            for keyword in keywords:
+                if keyword in message_lower:
+                    budget = budget_level
+                    break
+            if budget:
                 break
+        
+        # Fallback: check single keywords and symbols
+        if not budget:
+            parts = message_lower.split()
+            budget_keywords = {
+                "cheap": 1, "budget": 1, "$": 1, "affordable": 1, "casual": 1, "quick": 1,
+                "mid": 2, "moderate": 2, "$$": 2, "comfortable": 2, "normal": 2, "regular": 2,
+                "upscale": 3, "$$$": 3, "nice": 3, "good": 3,
+                "fancy": 4, "expensive": 4, "$$$$": 4, "special": 4, "splurge": 4
+            }
+            
+            for part in parts:
+                if part in budget_keywords:
+                    budget = budget_keywords[part]
+                    break
         
         if not budget:
             return {
@@ -400,13 +418,14 @@ class OrchestratorRunner:
     
     async def _compose_recommendations(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
         """Compose top 3 recommendations"""
-        from utils.scoring import rank_restaurants
+        from utils.scoring import rank_restaurants, format_distance
         
         # Score and rank candidates
         top_3 = rank_restaurants(state.candidates, top_n=3)
         
         recommendations = []
         for i, restaurant in enumerate(top_3, 1):
+            distance_km = format_distance(restaurant["distance_m"])
             recommendations.append({
                 "rank": i,
                 "place_id": restaurant["place_id"],
@@ -414,10 +433,10 @@ class OrchestratorRunner:
                 "rating": restaurant["rating"],
                 "price_level": restaurant["price_level"],
                 "distance_m": restaurant["distance_m"],
+                "distance_display": distance_km,
                 "open_until": restaurant.get("opening_hours_snippet", "Check availability"),
                 "score": round(restaurant.get("composite_score", 0), 2),
-                "rationale": f"Excellent {state.preferred_cuisine} option with {restaurant['rating']}★ rating, "
-                           f"{restaurant['distance_m']}m away"
+                "rationale": f"Excellent {state.preferred_cuisine} option with {restaurant['rating']}★ rating, {distance_km} away"
             })
         
         state.set_recommendations(recommendations)
@@ -425,7 +444,7 @@ class OrchestratorRunner:
         
         msg = "Here are my top 3 recommendations:\n\n"
         for rec in recommendations:
-            msg += f"{rec['rank']}. **{rec['name']}** ({rec['rating']}★) - {rec['distance_m']}m away\n"
+            msg += f"{rec['rank']}. **{rec['name']}** ({rec['rating']}★) - {rec['distance_display']} away\n"
             msg += f"   {rec['rationale']}\n\n"
         msg += "Which one would you like? (Enter 1, 2, or 3)"
         
@@ -439,8 +458,11 @@ class OrchestratorRunner:
     async def _handle_user_choice(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
         """Handle user's restaurant selection"""
         try:
-            choice = int(user_message.strip().split()[0])
-            if 1 <= choice <= 3 and choice <= len(state.recommendations):
+            # Extract first token and try to parse as integer
+            choice_str = user_message.strip().split()[0] if user_message.strip().split() else ""
+            choice = int(choice_str)
+            
+            if 1 <= choice <= len(state.recommendations):
                 selected = state.recommendations[choice - 1]
                 state.select_restaurant(selected)
                 self.state_store.save_state(state)
@@ -453,14 +475,18 @@ class OrchestratorRunner:
                     "next_step": "complete",
                     "selected": selected
                 }
+            else:
+                return {
+                    "context_id": state.context_id,
+                    "message": f"Please enter a number between 1 and {len(state.recommendations)} to select a restaurant.",
+                    "next_step": "select_restaurant"
+                }
         except (ValueError, IndexError):
-            pass
-        
-        return {
-            "context_id": state.context_id,
-            "message": "I didn't understand that. Please enter 1, 2, or 3 to select a restaurant.",
-            "next_step": "select_restaurant"
-        }
+            return {
+                "context_id": state.context_id,
+                "message": "I didn't understand that. Please enter 1, 2, or 3 to select a restaurant.",
+                "next_step": "select_restaurant"
+            }
 
 
 async def run_orchestrator_demo():

@@ -1,14 +1,14 @@
-"""Discovery Agent - Searches for restaurants using Google Places API"""
+
 
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 from config.retry_option import retry_config
 
-
+"""Discovery Agent - Searches for restaurants using Google Places API"""
 discovery_agent = Agent(
     name="discovery_agent",
     model=Gemini(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash", # Upgraded to 2.5 for better reasoning
         retry_options=retry_config
     ),
     description="Searches for nearby restaurants using Google Places API.",

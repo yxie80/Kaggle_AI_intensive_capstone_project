@@ -1,5 +1,3 @@
-"""Budget & Group Agent - Determines budget level and group size"""
-
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 from config.retry_option import retry_config
@@ -16,11 +14,11 @@ def map_budget_to_price_level(budget_desc):
     }
     return mapping.get(budget_desc.lower(), 2)
 
-
+"""Budget & Group Agent - Determines budget level and group size"""
 budget_group_agent = Agent(
     name="budget_group_agent",
     model=Gemini(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         retry_options=retry_config
     ),
     description="Determines user budget preference and group size through natural conversation.",

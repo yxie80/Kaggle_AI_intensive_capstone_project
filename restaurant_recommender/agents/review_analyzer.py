@@ -1,14 +1,12 @@
-"""Review Analyzer Agent - Analyzes reviews and computes sentiment scores"""
-
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 import os
 
-
+"""Review Analyzer Agent - Analyzes reviews and computes sentiment scores"""
 review_analyzer_agent = Agent(
     name="review_analyzer_agent",
     model=Gemini(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
     ),
     description="Analyzes reviews and computes sentiment scores for restaurants.",
     instruction="""You are Review Analyzer. Analyze restaurant reviews.

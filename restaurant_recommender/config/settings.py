@@ -1,5 +1,3 @@
-"""Configuration and settings for the restaurant recommender system"""
-
 from dataclasses import dataclass, field
 from typing import List, Optional
 

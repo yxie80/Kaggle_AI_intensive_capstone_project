@@ -1,5 +1,3 @@
-"""Google Places API integration with real API calls"""
-
 from typing import Dict, List, Any, Optional
 import json
 import os
@@ -8,7 +6,7 @@ from math import radians, cos, sin, asin, sqrt
 
 
 class GooglePlacesClient:
-    """Real Google Places API client"""
+    """Google Places API integration with real API calls"""
     
     def __init__(self, api_key: Optional[str] = None):
         """Initialize Google Places client with real API key"""

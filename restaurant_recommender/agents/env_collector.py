@@ -1,5 +1,3 @@
-"""Environment Collector Agent - Gathers contextual environment data"""
-
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 from datetime import datetime
@@ -18,11 +16,11 @@ def get_env_data():
         "food_types": ["Thai", "Japanese", "Italian", "Mexican", "Indian", "Chinese"]
     }
 
-
+"""Environment Collector Agent - Gathers contextual environment data"""
 env_collector_agent = Agent(
     name="env_collector",
     model=Gemini(
-        model="gemini-2.0-flash"
+        model="gemini-2.5-flash"
     ),
     description="Collects current environment data including time, weekday, and cached cuisine types.",
     instruction="""You are Env Collector. Your role is to gather and structure current environmental context.

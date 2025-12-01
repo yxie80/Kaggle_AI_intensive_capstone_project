@@ -1,14 +1,12 @@
-"""Orchestrator Agent - Main coordinator for the restaurant recommendation flow"""
-
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 from config.retry_option import retry_config
 
-
+"""Orchestrator Agent - Main coordinator for the restaurant recommendation flow"""
 orchestrator_agent = Agent(
     name="orchestrator",
     model=Gemini(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         retry_options=retry_config
     ),
     description="Main orchestrator that coordinates all agents in the restaurant recommendation workflow.",

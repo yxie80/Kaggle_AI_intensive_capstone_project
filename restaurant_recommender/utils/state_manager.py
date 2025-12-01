@@ -1,5 +1,3 @@
-"""State management for conversation flow"""
-
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict, field
 from datetime import datetime
