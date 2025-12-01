@@ -1,14 +1,12 @@
-"""Privacy Agent - Handles privacy and data retention consent"""
-
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 import os
 
-
+"""Privacy Agent - Handles privacy and data retention consent"""
 privacy_agent = Agent(
     name="privacy_agent",
     model=Gemini(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
     ),
     description="Handles privacy, consent, and data retention policies.",
     instruction="""You are Privacy Agent. Manage privacy and consent.

@@ -1,14 +1,12 @@
-"""Suggestion Composer Agent - Composes final restaurant suggestions"""
-
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 import os
 
-
+"""Suggestion Composer Agent - Composes final restaurant suggestions"""
 suggestion_composer_agent = Agent(
     name="suggestion_composer_agent",
     model=Gemini(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
     ),
     description="Composes top restaurant suggestions with rationale.",
     instruction="""You are Suggestion Composer. Create top suggestions.

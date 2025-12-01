@@ -1,14 +1,12 @@
-"""User Profiler Agent - Updates and maintains user profile"""
-
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 import os
 
-
+"""User Profiler Agent - Updates and maintains user profile"""
 user_profiler_agent = Agent(
     name="user_profiler_agent",
     model=Gemini(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
     ),
     description="Updates user profile with preferences and interaction history.",
     instruction="""You are User Profiler. Maintain and update user profiles.

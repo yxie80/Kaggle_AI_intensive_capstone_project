@@ -1,14 +1,12 @@
-"""Food Preference Agent - Determines preferred cuisine and dish"""
-
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 import os
 
-
+"""Food Preference Agent - Determines preferred cuisine and dish"""
 food_preference_agent = Agent(
     name="food_preference_agent",
     model=Gemini(
-        model="gemini-2.0-flash"
+        model="gemini-2.5-flash"
     ),
     description="Determines user food preferences and cuisine type.",
     instruction="""You are Food Preference Agent. Help user pick their preferred cuisine.

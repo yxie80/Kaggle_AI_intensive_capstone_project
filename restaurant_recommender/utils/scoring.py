@@ -1,5 +1,3 @@
-"""Restaurant scoring and ranking utilities"""
-
 from typing import Dict, List, Any, Optional
 from config.settings import DEFAULT_SCORING_WEIGHTS
 import math
@@ -10,8 +8,8 @@ def normalize_distance(distance_m: int, max_distance_m: int = 10000) -> float:
     Normalize distance to 0-1 scale (closer = higher score)
     
     Args:
-        distance_m: Distance in meters
-        max_distance_m: Maximum distance threshold
+        distance_m: Distance in meters 
+        max_distance_m: Maximum distance threshold (in meters)
         
     Returns:
         Normalized distance score 0-1
@@ -19,6 +17,20 @@ def normalize_distance(distance_m: int, max_distance_m: int = 10000) -> float:
     if distance_m >= max_distance_m:
         return 0.0
     return 1.0 - (distance_m / max_distance_m)
+
+
+def format_distance(distance_m: float) -> str:
+    """
+    Format distance from meters to kilometers with 1 decimal place
+    
+    Args:
+        distance_m: Distance in meters
+        
+    Returns:
+        Formatted distance string (e.g., "0.6 km", "1.2 km")
+    """
+    distance_km = distance_m / 1000
+    return f"{distance_km:.1f} km"
 
 
 def normalize_rating(rating: float, max_rating: float = 5.0) -> float:

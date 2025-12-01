@@ -1,5 +1,3 @@
-"""Energy Assessor Agent - Determines user energy level and search radius"""
-
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 from config.retry_option import retry_config
@@ -14,11 +12,11 @@ def radius_from_energy(energy_level):
     else:
         return 5000
 
-
+"""Energy Assessor Agent - Determines user energy level and search radius"""
 energy_assessor_agent = Agent(
     name="energy_assessor",
     model=Gemini(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         retry_options=retry_config
     ),
     description="Assesses user energy level through natural conversation and maps it to search radius.",
