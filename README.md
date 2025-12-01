@@ -1,6 +1,26 @@
 # Multi-Agent Restaurant Recommender System
 
-A comprehensive restaurant recommendation system built with Google's Agent Development Kit (ADK), demonstrating a multi-agent architecture for conversational AI.
+A **production-ready, multi-agent conversational restaurant recommender** built with Google ADK.  
+Designed as a clear, extensible reference implementation demonstrating agent orchestration, conversational state management, and a multi-factor ranking algorithm.
+
+---
+
+**Course:** 5-Day AI Agents Intensive with Google  \
+**Team Members:** Zoey Y, Michael Xie \
+**Track:** Concierge Agents \
+**Date:** Nov 2025
+
+---
+
+## Quick highlights
+
+- 10 focused agents (orchestration, environment, energy, budget/group, discovery, review analysis, suggestion composition, profiling, privacy)  
+- 7-stage conversational flow (location → energy level → budget/group → cuisine → discovery → analysis → recommendation)  
+- Composite scoring: rating, distance, value, open-now (default weights: 40/25/20/15)  
+- Demo mode and FastAPI backend for integration/testing  
+- Mocked Google Places client (easy to swap for production)
+
+
 
 **Current Status**: ✅ All 10 agents upgraded to **Gemini 2.5 Flash** (from 2.0 Flash)
 
