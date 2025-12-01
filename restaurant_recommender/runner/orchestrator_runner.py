@@ -493,8 +493,7 @@ class OrchestratorRunner:
                             query=potential_restaurant,
                             latitude=latitude,
                             longitude=longitude,
-                            radius_m=state.search_radius_m,
-                            type_filter="restaurant"
+                            radius_m=state.search_radius_m
                         )
                         
                         if candidates:
@@ -743,7 +742,7 @@ class OrchestratorRunner:
                             latitude=latitude,
                             longitude=longitude,
                             radius_m=state.search_radius_m,
-                            type_filter="restaurant"
+                            # type_filter="restaurant"
                         )
                         
                         if candidates:

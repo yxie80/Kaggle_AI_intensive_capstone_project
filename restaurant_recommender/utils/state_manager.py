@@ -22,6 +22,7 @@ class ConversationState:
     
     # System generated data
     search_radius_m: int = 3000
+    distance_confirmed: bool = False  # Track if user confirmed the search distance
     candidates: list = field(default_factory=list)
     recommendations: list = field(default_factory=list)
     selected_restaurant: Optional[Dict[str, Any]] = None
@@ -49,6 +50,14 @@ class ConversationState:
         self.energy_level = energy
         energy_radius = {1: 1000, 2: 1000, 3: 3000, 4: 5000, 5: 5000}
         self.search_radius_m = energy_radius.get(energy, 3000)
+        self.distance_confirmed = False  # Reset confirmation when energy changes
+        self.update_timestamp()
+    
+    def confirm_distance(self, custom_radius_m: Optional[int] = None) -> None:
+        """Confirm the search distance, optionally with custom radius"""
+        if custom_radius_m:
+            self.search_radius_m = custom_radius_m
+        self.distance_confirmed = True
         self.update_timestamp()
     
     def set_budget(self, budget_level: int, group_size: int) -> None:
