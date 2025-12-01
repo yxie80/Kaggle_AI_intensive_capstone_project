@@ -5,9 +5,10 @@ name = "pypi"
 
 [packages]
 google-adk = "*"
-google-genai = "*"
 python-dotenv = "*"
 ipython = "*"
+requests = "*"
+google-genai = "*"
 
 [dev-packages]
 
