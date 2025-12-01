@@ -75,6 +75,9 @@ class OrchestratorRunner:
         elif state.energy_level is None:
             return await self._collect_energy(state, user_message)
         
+        elif not hasattr(state, 'distance_confirmed') or not state.distance_confirmed:
+            return await self._confirm_distance(state, user_message)
+        
         elif state.budget_level is None or state.group_size is None:
             return await self._collect_budget_group(state, user_message)
         
@@ -88,6 +91,7 @@ class OrchestratorRunner:
             return await self._compose_recommendations(state, user_message)
         
         else:
+            # Handle both restaurant selection and user feedback/changes
             return await self._handle_user_choice(state, user_message)
     
     async def _collect_location(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
@@ -141,8 +145,8 @@ class OrchestratorRunner:
                 return {
                     "context_id": state.context_id,
                     "message": f"Got it - you're feeling {energy_desc}. I'll search within {state.search_radius_m}m. "
-                              f"Next up: what's your budget? Thinking casual and affordable, comfortable mid-range, or a nicer experience?",
-                    "next_step": "collect_budget",
+                              f"Does that search distance work for you, or would you prefer a different range?",
+                    "next_step": "confirm_distance",
                     "energy": energy,
                     "search_radius_m": state.search_radius_m
                 }
@@ -161,9 +165,10 @@ class OrchestratorRunner:
             return {
                 "context_id": state.context_id,
                 "message": f"Sounds like you've had a long day! No problem - I'll search nearby (within {state.search_radius_m}m). "
-                          f"So, budget-wise - are you thinking casual, mid-range, or something special?",
-                "next_step": "collect_budget",
-                "energy": energy
+                          f"Is that distance okay for you, or would you prefer a different range?",
+                "next_step": "confirm_distance",
+                "energy": energy,
+                "search_radius_m": state.search_radius_m
             }
         elif any(kw in message_lower for kw in energetic_keywords):
             energy = 4
@@ -172,9 +177,10 @@ class OrchestratorRunner:
             return {
                 "context_id": state.context_id,
                 "message": f"Awesome! You're ready to explore. I'll expand my search to {state.search_radius_m}m. "
-                          f"Budget check - casual and affordable, mid-range comfort, or treating yourself?",
-                "next_step": "collect_budget",
-                "energy": energy
+                          f"Does that search range work for you?",
+                "next_step": "confirm_distance",
+                "energy": energy,
+                "search_radius_m": state.search_radius_m
             }
         else:
             # Default to moderate
@@ -184,10 +190,133 @@ class OrchestratorRunner:
             return {
                 "context_id": state.context_id,
                 "message": f"Got it - moderate energy. I'll search within {state.search_radius_m}m. "
-                          f"Budget question: affordable, mid-range, or upscale?",
-                "next_step": "collect_budget",
-                "energy": energy
+                          f"Does that search range work for you, or would you prefer a different distance?",
+                "next_step": "confirm_distance",
+                "energy": energy,
+                "search_radius_m": state.search_radius_m
             }
+    
+    async def _confirm_distance(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
+        """
+        Confirm search distance with user. Allow them to:
+        1. Accept the suggested distance
+        2. Propose a custom distance
+        3. Ask questions about it
+        """
+        message_lower = user_message.lower()
+        
+        # Check if user accepts the distance
+        accept_keywords = ["yes", "ok", "okay", "perfect", "great", "sounds good", "that's fine", 
+                          "that works", "i'm good", "is fine", "looks good", "alright"]
+        reject_keywords = ["no", "too far", "too close", "farther", "closer", "too much", "reduce", 
+                          "increase", "more", "less", "different"]
+        
+        if any(kw in message_lower for kw in accept_keywords):
+            # User accepts the distance
+            state.confirm_distance()
+            self.state_store.save_state(state)
+            return {
+                "context_id": state.context_id,
+                "message": f"Perfect! I'll search within {state.search_radius_m}m. "
+                          f"Now, budget-wise - are you thinking casual and affordable, mid-range comfort, or treating yourself?",
+                "next_step": "collect_budget",
+                "distance_m": state.search_radius_m,
+                "confirmed": True
+            }
+        
+        # Try to extract custom distance if user proposes one
+        words = message_lower.split()
+        custom_distance = None
+        
+        # Look for patterns like "1000m", "1 km", "1000 meters"
+        for i, word in enumerate(words):
+            # Strip punctuation from word for processing
+            word_clean = word.strip('.,!?;:')
+            
+            # Check for numbers followed by distance units
+            if word_clean.replace(',', '').isdigit():
+                distance_num = int(word_clean.replace(',', ''))
+                # Check if next word has a unit
+                if i + 1 < len(words):
+                    unit_word = words[i + 1].strip('.,!?;:')
+                    if 'km' in unit_word or 'kilometer' in unit_word:
+                        custom_distance = distance_num * 1000
+                        break
+                    elif 'm' in unit_word or 'meter' in unit_word:
+                        custom_distance = distance_num
+                        break
+            # Check for patterns like "1000m" or "1km" as single token
+            # Important: must check 'km' before 'm' to avoid matching 'm' in other words
+            elif 'km' in word_clean or 'kilometer' in word_clean:
+                try:
+                    num_str = word_clean.replace('km', '').replace('kilometer', '')
+                    if num_str and num_str.isdigit():
+                        distance_num = int(num_str)
+                        custom_distance = distance_num * 1000
+                        break
+                except ValueError:
+                    pass
+            # Then check for meter patterns
+            elif word_clean.endswith('m') and any(c.isdigit() for c in word_clean):
+                try:
+                    num_str = word_clean.replace('m', '').strip()
+                    if num_str and num_str.isdigit():
+                        distance_num = int(num_str)
+                        custom_distance = distance_num
+                        break
+                except ValueError:
+                    pass
+        
+        # Handle explicit rejection or custom distance request
+        if any(kw in message_lower for kw in reject_keywords) or custom_distance:
+            if custom_distance:
+                # Validate custom distance (reasonable bounds: 500m to 25km)
+                if 500 <= custom_distance <= 25000:
+                    state.confirm_distance(custom_distance)
+                    self.state_store.save_state(state)
+                    distance_display = f"{custom_distance/1000:.1f}km" if custom_distance >= 1000 else f"{custom_distance}m"
+                    return {
+                        "context_id": state.context_id,
+                        "message": f"Great! I'll search within {distance_display}. "
+                                  f"Now, budget-wise - are you thinking casual and affordable, mid-range comfort, or treating yourself?",
+                        "next_step": "collect_budget",
+                        "distance_m": custom_distance,
+                        "confirmed": True
+                    }
+                else:
+                    # Distance out of valid range
+                    return {
+                        "context_id": state.context_id,
+                        "message": f"That distance seems a bit extreme. Let me suggest a few options:\n"
+                                  f"- Close by: 500-1000m\n"
+                                  f"- Nearby: 1000-3000m\n"
+                                  f"- Wider search: 3000-5000m\n\n"
+                                  f"Which range works better for you, or would you like a specific distance in meters/km?",
+                        "next_step": "confirm_distance",
+                        "current_distance_m": state.search_radius_m
+                    }
+            
+            # User rejected but didn't specify a distance
+            return {
+                "context_id": state.context_id,
+                "message": f"I understand - the {state.search_radius_m/1000:.1f}km range might be too much. "
+                          f"What distance would you prefer? You can say something like '1km', '2000m', or pick from:\n"
+                          f"- Very close: ~500m\n"
+                          f"- Close: ~1000m\n"
+                          f"- Moderate: ~2000m\n"
+                          f"- Wider: ~5000m",
+                "next_step": "confirm_distance",
+                "current_distance_m": state.search_radius_m
+            }
+        
+        # User didn't clearly accept or reject
+        return {
+            "context_id": state.context_id,
+            "message": f"Just to confirm - does a {state.search_radius_m/1000:.1f}km search radius work for you, "
+                      f"or would you prefer a different distance? (Just say 'yes', 'no', or suggest a distance like '1km' or '500m')",
+            "next_step": "confirm_distance",
+            "current_distance_m": state.search_radius_m
+        }
     
     async def _collect_budget_group(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
         """Collect budget and group size with natural language"""
@@ -322,6 +451,72 @@ class OrchestratorRunner:
     
     async def _discover_restaurants(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
         """Discover restaurants using real Google Places API"""
+        from config.settings import CUISINE_TYPES
+        
+        message_lower = user_message.lower().strip()
+        
+        # Only check for cuisine change if message is explicit (contains keywords like "how about", "try", etc.)
+        # and is different from current cuisine
+        has_change_keywords = any(kw in message_lower for kw in ["how about", "what about", "try", "change to", 
+                                                                   "instead", "switch to", "different"])
+        
+        if has_change_keywords and message_lower:
+            for cuisine in CUISINE_TYPES:
+                if cuisine.lower() in message_lower and cuisine.lower() != (state.preferred_cuisine or "thai").lower():
+                    # User wants to change cuisine
+                    state.set_cuisine_preference(cuisine)
+                    state.candidates = []  # Reset candidates
+                    self.state_store.save_state(state)
+                    
+                    return {
+                        "context_id": state.context_id,
+                        "message": f"Great! Let me search for {cuisine} restaurants instead...",
+                        "next_step": "discover_restaurants"
+                    }
+        
+        # Check if user is suggesting a specific restaurant name to search for
+        # Keywords that indicate user is proposing a restaurant
+        if any(kw in message_lower for kw in ["how about", "what about", "maybe", "probably", "could we try", "can we go to", "let's go to"]):
+            # Extract the restaurant name (typically after the keyword)
+            parts = message_lower.split()
+            potential_restaurant = " ".join(user_message.split()).strip()
+            
+            # Try searching for this specific restaurant
+            if state.location:
+                latitude = state.location.get("latitude") or state.location.get("lat")
+                longitude = state.location.get("longitude") or state.location.get("lng")
+                
+                if latitude and longitude:
+                    # Search for the specific restaurant
+                    try:
+                        candidates = self.places_client.text_search(
+                            query=potential_restaurant,
+                            latitude=latitude,
+                            longitude=longitude,
+                            radius_m=state.search_radius_m,
+                            type_filter="restaurant"
+                        )
+                        
+                        if candidates:
+                            state.set_candidates(candidates[:20])
+                            self.state_store.save_state(state)
+                            
+                            return {
+                                "context_id": state.context_id,
+                                "message": f"Found {len(candidates)} results for '{potential_restaurant}'. Analyzing...",
+                                "next_step": "analyze_and_compose",
+                                "candidates_count": len(candidates)
+                            }
+                        else:
+                            return {
+                                "context_id": state.context_id,
+                                "message": f"I couldn't find '{potential_restaurant}' nearby. Would you like me to search for {state.preferred_cuisine} instead, or try a different restaurant name?",
+                                "next_step": "discover_restaurants"
+                            }
+                    except Exception as e:
+                        pass  # Fall through to regular discovery
+        
+        # If we reach here without finding alternatives, do regular discovery
         cuisine = state.preferred_cuisine or "Thai"
         
         # Get price level filter based on budget
@@ -398,7 +593,11 @@ class OrchestratorRunner:
         if not candidates:
             return {
                 "context_id": state.context_id,
-                "message": f"I couldn't find any open {cuisine} restaurants in that area. Let me try a different search...",
+                "message": f"I couldn't find any open {cuisine} restaurants in that area. Would you like to:\n"
+                          f"- Try a different cuisine (e.g., 'How about Italian?')\n"
+                          f"- Search for a specific restaurant (e.g., 'How about KFC?')\n"
+                          f"- Expand the search distance\n\n"
+                          f"What would you prefer?",
                 "next_step": "discover_restaurants"
             }
         
@@ -419,6 +618,29 @@ class OrchestratorRunner:
     async def _compose_recommendations(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
         """Compose top 3 recommendations"""
         from utils.scoring import rank_restaurants, format_distance
+        from config.settings import CUISINE_TYPES
+        
+        # First check if user wants to change cuisine before composing
+        message_lower = user_message.lower().strip()
+        if message_lower:
+            # Check for cuisine change requests
+            has_change_keywords = any(kw in message_lower for kw in ["how about", "what about", "try", "change to", 
+                                                                       "instead", "switch to", "different"])
+            
+            if has_change_keywords:
+                for cuisine in CUISINE_TYPES:
+                    if cuisine.lower() in message_lower and cuisine.lower() != (state.preferred_cuisine or "thai").lower():
+                        # User wants to change cuisine before even seeing recommendations
+                        state.set_cuisine_preference(cuisine)
+                        state.candidates = []
+                        state.recommendations = []
+                        self.state_store.save_state(state)
+                        
+                        return {
+                            "context_id": state.context_id,
+                            "message": f"Great! Let me search for {cuisine} restaurants instead...",
+                            "next_step": "discover_restaurants"
+                        }
         
         # Score and rank candidates
         top_3 = rank_restaurants(state.candidates, top_n=3)
@@ -456,9 +678,13 @@ class OrchestratorRunner:
         }
     
     async def _handle_user_choice(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
-        """Handle user's restaurant selection"""
+        """Handle user's restaurant selection or feedback during recommendations"""
+        from config.settings import CUISINE_TYPES
+        
+        message_lower = user_message.lower()
+        
+        # First, try to parse as a numeric selection (1, 2, or 3)
         try:
-            # Extract first token and try to parse as integer
             choice_str = user_message.strip().split()[0] if user_message.strip().split() else ""
             choice = int(choice_str)
             
@@ -469,7 +695,7 @@ class OrchestratorRunner:
                 
                 return {
                     "context_id": state.context_id,
-                    "message": f"Great choice! I'm booking **{selected['name']}** for you. " # TODO: integrate booking API from google maps after checking customer preference
+                    "message": f"Great choice! I'm booking **{selected['name']}** for you. "
                               f"You can visit them now - they're open until {selected['open_until']}. "
                               f"Enjoy your meal! Rate your experience when you're done.",
                     "next_step": "complete",
@@ -482,11 +708,77 @@ class OrchestratorRunner:
                     "next_step": "select_restaurant"
                 }
         except (ValueError, IndexError):
-            return {
-                "context_id": state.context_id,
-                "message": "I didn't understand that. Please enter 1, 2, or 3 to select a restaurant.",
-                "next_step": "select_restaurant"
-            }
+            pass
+        
+        # Check if user wants to change cuisine
+        for cuisine in CUISINE_TYPES:
+            if cuisine.lower() in message_lower:
+                # User wants a different cuisine - reset recommendations and candidates
+                state.set_cuisine_preference(cuisine)
+                state.candidates = []
+                state.recommendations = []
+                self.state_store.save_state(state)
+                
+                return {
+                    "context_id": state.context_id,
+                    "message": f"Got it! Let me search for {cuisine} restaurants for you...",
+                    "next_step": "discover_restaurants"
+                }
+        
+        # Check if user is proposing a specific restaurant
+        if any(kw in message_lower for kw in ["how about", "what about", "maybe", "probably", "could we try", 
+                                               "can we go to", "let's go to", "i prefer", "i'd like", "try"]):
+            # Extract potential restaurant name
+            potential_restaurant = user_message.strip()
+            
+            # Try searching for this specific restaurant
+            if state.location:
+                latitude = state.location.get("latitude") or state.location.get("lat")
+                longitude = state.location.get("longitude") or state.location.get("lng")
+                
+                if latitude and longitude:
+                    try:
+                        candidates = self.places_client.text_search(
+                            query=potential_restaurant,
+                            latitude=latitude,
+                            longitude=longitude,
+                            radius_m=state.search_radius_m,
+                            type_filter="restaurant"
+                        )
+                        
+                        if candidates:
+                            # Reset recommendations and set new candidates
+                            state.set_candidates(candidates[:20])
+                            state.recommendations = []
+                            self.state_store.save_state(state)
+                            
+                            return {
+                                "context_id": state.context_id,
+                                "message": f"Found some results for '{potential_restaurant}'. Let me analyze them...",
+                                "next_step": "analyze_and_compose",
+                                "candidates_count": len(candidates)
+                            }
+                        else:
+                            return {
+                                "context_id": state.context_id,
+                                "message": f"I couldn't find '{potential_restaurant}' nearby. Would you like to:\n"
+                                          f"- Select from the current recommendations (1, 2, or 3)\n"
+                                          f"- Try a different restaurant name\n"
+                                          f"- Try a different cuisine",
+                                "next_step": "select_restaurant"
+                            }
+                    except Exception as e:
+                        pass  # Fall through to generic response
+        
+        # Default: didn't understand the input
+        return {
+            "context_id": state.context_id,
+            "message": f"I didn't quite understand. Would you like to:\n"
+                      f"- Select a recommendation (enter 1, 2, or 3)\n"
+                      f"- Try a different cuisine (e.g., 'How about Italian?')\n"
+                      f"- Search for a specific restaurant (e.g., 'How about KFC?')",
+            "next_step": "select_restaurant"
+        }
 
 
 async def run_orchestrator_demo():
