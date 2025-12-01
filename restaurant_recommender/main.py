@@ -23,14 +23,14 @@ async def main():
     context_id = result["context_id"]
     
     print(f"Context ID: {context_id}")
-    print(f"Environment: {result['environment']}")
+    print(f"Environment: {result['environment']}") # Show detected environment info
     print()
     print(f"Assistant: {result['message']}")
     print()
     
-    # Simulate multi-turn conversation with natural language
+    # Simulate multi-turn conversation with natural language #TODO: taking user input from command line
     conversation_flow = [
-        ("user", "I'm in New York"),
+        ("user", "I'm in Melbroune CBD in Australia"),      # Location input - Need to check the nation 
         ("user", "Pretty tired after work"),  # Natural language energy: "tired" → 2
         ("user", "Mid-range sounds nice"),     # Natural language budget: "mid-range" → 2
         ("user", "Just me and a friend"),      # Natural language group: "friend" → 2

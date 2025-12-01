@@ -10,13 +10,13 @@ def normalize_distance(distance_m: int, max_distance_m: int = 10000) -> float:
     Normalize distance to 0-1 scale (closer = higher score)
     
     Args:
-        distance_m: Distance in meters
+        distance_m: Distance in meters 
         max_distance_m: Maximum distance threshold
         
     Returns:
         Normalized distance score 0-1
     """
-    if distance_m >= max_distance_m:
+    if distance_m >= max_distance_m: #TODO: distance in kilometers rahter than meters
         return 0.0
     return 1.0 - (distance_m / max_distance_m)
 

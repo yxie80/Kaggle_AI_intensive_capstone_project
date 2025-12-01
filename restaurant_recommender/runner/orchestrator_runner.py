@@ -13,6 +13,7 @@ from agents.suggestion_composer import suggestion_composer_agent
 from agents.user_profiler_agent import user_profiler_agent
 from agents.privacy_agent import privacy_agent
 from utils.state_manager import ConversationState, get_state_store
+from integrations.google_places import GooglePlacesClient
 
 
 class OrchestratorRunner:
@@ -21,6 +22,7 @@ class OrchestratorRunner:
     def __init__(self):
         self.state_store = get_state_store()
         self.conversation_history = []
+        self.places_client = GooglePlacesClient()  # Initialize real API client
     
     async def start_conversation(self, user_id: str, user_message: str) -> Dict[str, Any]:
         """
@@ -44,9 +46,9 @@ class OrchestratorRunner:
             "user_id": user_id,
             "status": "started",
             "environment": env_data,
-            "message": f"Hi! I'm your restaurant recommender. You're reaching me on a {env_data['weekday']} at {env_data['local_time']}. "
+            "message": f"Hi! I'm your restaurant recommender. You're reaching me on a {env_data['weekday']} at {env_data['local_time']}. "  #TODO: Asking customer if they want to use current time/location
                       f"To help you find the perfect restaurant, I need to ask you a few things. First, what's your location (city or coordinates)?",
-            "next_step": "collect_location"
+            "next_step": "collect_location" #TODO: why do we use next_step? rahther than chain up agents. ?
         }
         
         return response
@@ -66,7 +68,7 @@ class OrchestratorRunner:
         if not state:
             return {"error": "Context not found"}
         
-        # Route based on current conversation stage
+        # Route based on current conversation stage #TODO: refactor to use state machine pattern or sequential agent chaining
         if not state.location:
             return await self._collect_location(state, user_message)
         
@@ -89,19 +91,36 @@ class OrchestratorRunner:
             return await self._handle_user_choice(state, user_message)
     
     async def _collect_location(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
-        """Collect user location"""
-        # Parse location (simplified - in production use geocoding API)
-        # For now, use default coordinates (New York)
-        state.set_location(40.7128, -74.0060)
-        self.state_store.save_state(state)
+        """Collect user location with real geocoding"""
+        # Use real geocoding API to convert address to coordinates
+        geocoding_result = self.places_client.geocode(user_message)
         
-        return {
-            "context_id": state.context_id,
-            "message": "Great! I've got your location. Now, quick question - have you had a long day, or are you still full of energy? "
-                      "Or somewhere in between?",
-            "next_step": "collect_energy",
-            "location": state.location
-        }
+        if geocoding_result:
+            latitude = geocoding_result["latitude"]
+            longitude = geocoding_result["longitude"]
+            formatted_address = geocoding_result["formatted_address"]
+            
+            state.set_location(latitude, longitude)
+            self.state_store.save_state(state)
+            
+            return {
+                "context_id": state.context_id,
+                "message": f"Got it - {formatted_address}. Now, quick question - have you had a long day, or are you still full of energy? "
+                          f"Or somewhere in between?",
+                "next_step": "collect_energy",
+                "location": {
+                    "address": formatted_address,
+                    "latitude": latitude,
+                    "longitude": longitude
+                }
+            }
+        else:
+            # If geocoding fails, ask for more specific location
+            return {
+                "context_id": state.context_id,
+                "message": f"I couldn't find that location. Could you please be more specific? (e.g., 'Sydney CBD, Australia' or provide coordinates like '40.7128, -74.0060')",
+                "next_step": "collect_location"
+            }
     
     async def _collect_energy(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
         """Collect energy level"""
@@ -284,71 +303,97 @@ class OrchestratorRunner:
         }
     
     async def _discover_restaurants(self, state: ConversationState, user_message: str) -> Dict[str, Any]:
-        """Discover restaurants matching criteria"""
-        # Generate mock restaurant data based on requested cuisine
+        """Discover restaurants using real Google Places API"""
         cuisine = state.preferred_cuisine or "Thai"
         
-        # Restaurant name templates based on cuisine
-        name_templates = {
-            "Thai": ["Golden Thai Kitchen", "Pad Thai Express", "Thai Orchid Fine Dining"],
-            "Italian": ["Bella Italia Restaurant", "Pasta Perfetto", "Italian Trattoria Fine Dining"],
-            "Japanese": ["Golden Sushi Bar", "Tokyo Express", "Sakura Fine Dining"],
-            "Mexican": ["Casa Mexico", "Taco Express", "El Pueblo Fine Dining"],
-            "Indian": ["Taj Mahal Cuisine", "Curry Express", "Maharaja Fine Dining"],
-            "Chinese": ["Golden Dragon", "Beijing Express", "Dynasty Fine Dining"]
+        # Get price level filter based on budget
+        budget_to_price_level = {
+            1: [1],
+            2: [1, 2],
+            3: [2, 3],
+            4: [3, 4]
+        }
+        budget = state.budget_level or 2
+        price_levels = budget_to_price_level.get(budget, [1, 2, 3])
+        
+        # Verify location is set
+        if not state.location or ("lat" not in state.location and "latitude" not in state.location):
+            return {
+                "context_id": state.context_id,
+                "message": "I need a valid location to search. Could you please provide your location again?",
+                "next_step": "collect_location"
+            }
+        
+        # Get coordinates (handle both "lat"/"lng" and "latitude"/"longitude" keys)
+        latitude = state.location.get("latitude") or state.location.get("lat")
+        longitude = state.location.get("longitude") or state.location.get("lng")
+        
+        if not latitude or not longitude:
+            return {
+                "context_id": state.context_id,
+                "message": "I need a valid location to search. Could you please provide your location again?",
+                "next_step": "collect_location"
+            }
+        
+        # Call real Google Places API
+        candidates = self.places_client.nearby_search(
+            latitude=latitude,
+            longitude=longitude,
+            radius_m=state.search_radius_m,
+            keyword=cuisine,
+            type_filter="restaurant",
+            price_level=price_levels,
+            open_now=True
+        )
+        
+        # Filter candidates by cuisine preference (post-processing since API doesn't filter by cuisine)
+        cuisine_keywords = {
+            "Thai": ["thai", "pad thai", "tom yum"],
+            "Japanese": ["japanese", "sushi", "ramen", "izakaya", "tonkatsu"],
+            "Italian": ["italian", "pizza", "pasta", "trattoria"],
+            "Mexican": ["mexican", "taco", "burrito", "cantina"],
+            "Indian": ["indian", "curry", "tandoor", "biryani"],
+            "Chinese": ["chinese", "dim", "cantonese", "peking"]
         }
         
-        names = name_templates.get(cuisine, [f"{cuisine} Restaurant 1", f"{cuisine} Express", f"{cuisine} Fine Dining"])
+        cuisine_filters = cuisine_keywords.get(cuisine, [cuisine.lower()])
         
-        # Simulated restaurant data (in production, call Google Places API)
-        candidates = [
-            {
-                "place_id": "place_1",
-                "name": names[0],
-                "latitude": 40.7128,
-                "longitude": -74.0060,
-                "distance_m": 800,
-                "price_level": 2,
-                "rating": 4.5,
-                "user_ratings_total": 150,
-                "open_now": True,
-                "opening_hours_snippet": "Open until 21:30",
-                "value_score": 0.85
-            },
-            {
-                "place_id": "place_2",
-                "name": names[1],
-                "latitude": 40.7150,
-                "longitude": -74.0080,
-                "distance_m": 1200,
-                "price_level": 1,
-                "rating": 4.2,
-                "user_ratings_total": 200,
-                "open_now": True,
-                "opening_hours_snippet": "Open until 22:00",
-                "value_score": 0.9
-            },
-            {
-                "place_id": "place_3",
-                "name": names[2],
-                "latitude": 40.7100,
-                "longitude": -74.0050,
-                "distance_m": 1500,
-                "price_level": 3,
-                "rating": 4.7,
-                "user_ratings_total": 320,
-                "open_now": True,
-                "opening_hours_snippet": "Open until 23:00",
-                "value_score": 0.75
+        filtered_candidates = []
+        for candidate in candidates:
+            name_lower = candidate.get("name", "").lower()
+            types = candidate.get("types", [])
+            # Check if any cuisine keyword appears in the restaurant name or if types include cuisine-related tags
+            if any(keyword in name_lower for keyword in cuisine_filters):
+                filtered_candidates.append(candidate)
+        
+        # If we have filtered results, use them; otherwise log what we found for debugging
+        if filtered_candidates:
+            candidates = filtered_candidates
+        else:
+            # If no exact cuisine match, just use all restaurants (fallback)
+            # This handles cases where cuisine names don't appear explicitly
+            pass
+        
+        # Limit to top 20 results
+        candidates = candidates[:20]
+        
+        if not candidates:
+            return {
+                "context_id": state.context_id,
+                "message": f"I couldn't find any open {cuisine} restaurants in that area. Let me try a different search...",
+                "next_step": "discover_restaurants"
             }
-        ]
+        
+        # Add value scores to candidates
+        for candidate in candidates:
+            candidate["value_score"] = (candidate.get("rating", 3) / 5.0) * 0.7 + (1 - candidate.get("price_level", 2) / 4.0) * 0.3
         
         state.set_candidates(candidates)
         self.state_store.save_state(state)
         
         return {
             "context_id": state.context_id,
-            "message": f"Found {len(candidates)} great {state.preferred_cuisine} restaurants! Analyzing reviews...",
+            "message": f"Found {len(candidates)} great {cuisine} restaurants! Analyzing reviews...",
             "next_step": "analyze_and_compose",
             "candidates_count": len(candidates)
         }
@@ -369,7 +414,7 @@ class OrchestratorRunner:
                 "rating": restaurant["rating"],
                 "price_level": restaurant["price_level"],
                 "distance_m": restaurant["distance_m"],
-                "open_until": restaurant["opening_hours_snippet"],
+                "open_until": restaurant.get("opening_hours_snippet", "Check availability"),
                 "score": round(restaurant.get("composite_score", 0), 2),
                 "rationale": f"Excellent {state.preferred_cuisine} option with {restaurant['rating']}★ rating, "
                            f"{restaurant['distance_m']}m away"
@@ -402,7 +447,7 @@ class OrchestratorRunner:
                 
                 return {
                     "context_id": state.context_id,
-                    "message": f"Great choice! I'm booking **{selected['name']}** for you. "
+                    "message": f"Great choice! I'm booking **{selected['name']}** for you. " # TODO: integrate booking API from google maps after checking customer preference
                               f"You can visit them now - they're open until {selected['open_until']}. "
                               f"Enjoy your meal! Rate your experience when you're done.",
                     "next_step": "complete",
@@ -429,7 +474,7 @@ async def run_orchestrator_demo():
     
     # Simulate conversation flow
     messages = [
-        "New York",
+        "Melbourne CBD in Australia",
         "3",
         "mid-range",
         "Thai",
