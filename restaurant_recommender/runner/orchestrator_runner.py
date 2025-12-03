@@ -784,14 +784,14 @@ class OrchestratorRunner:
                 time_needed = travel_time_minutes + min_minutes
                 
                 if time_available_minutes >= time_needed:
-                    return True, None
+                    return True, ""
                 else:
                     minutes_short = int(time_needed - time_available_minutes)
                     return False, f"Not enough time (closes in {int(time_available_minutes)} min, need {int(time_needed)} min)"
             
             except Exception as e:
                 # If any error, assume there's enough time
-                return True, None
+                return True, ""
         
         # Score and rank candidates
         top_3 = rank_restaurants(state.candidates, top_n=3)

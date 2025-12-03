@@ -10,6 +10,7 @@ ipython = "*"
 requests = "*"
 google-genai = "*"
 timezonefinder = "*"
+pytz = "*"
 
 [dev-packages]
 

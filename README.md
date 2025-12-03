@@ -20,8 +20,6 @@ Designed as a clear, extensible reference implementation demonstrating agent orc
 - Demo mode and FastAPI backend for integration/testing  
 - Mocked Google Places client (easy to swap for production)
 
-
-
 **Current Status**: ✅ All 10 agents upgraded to **Gemini 2.5 Flash** (from 2.0 Flash)
 
 ## AI/Agent Concepts Implemented
@@ -241,12 +239,14 @@ All 10 specialized agents have been upgraded from `gemini-2.0-flash` to `gemini-
 - **Before**: 7-8 exchanges (energy → distance → budget → group → cuisine → discover → compose)
 - **After**: 2-3 exchanges with "Quick Tired Mode" (exhaustion detection → fast food recommendations → selection)
 - **Example**:
-  ```
+  
+  ```plain
   User: "I'm completely exhausted"
   System: "I got it - you're exhausted! No need to overthink. Let me find the closest fast food options for you..."
   [System displays top 3 closest fast food restaurants]
   System: "Which one would you like? (Enter 1-3)"
   ```
+
 - **User Impact**: Exhausted users can get recommendations in seconds instead of minutes
 
 **Feature: Location Time Reminder** ✅ NEW
@@ -263,7 +263,8 @@ All 10 specialized agents have been upgraded from `gemini-2.0-flash` to `gemini-
   - Prevents confusion when searching across timezones
   - Helps users plan accordingly (e.g., "It's 6:45 PM there, restaurants close at 11 PM, so I have ~4 hours")
 - **Example Conversation**:
-  ```
+
+  ```plain
   User: "Melbourne"
   System: "Got it - Melbourne, VIC, Australia
            🕐 Current local time: 06:45 PM (Australia/Melbourne)
@@ -275,6 +276,7 @@ All 10 specialized agents have been upgraded from `gemini-2.0-flash` to `gemini-
            
            Here are my top 3 recommendations..."
   ```
+
 - **User Impact**: Clear awareness of destination time throughout conversation, better decision-making
 
 **Feature: Timezone-Aware Time Calculation** ✅ NEW & FULLY FUNCTIONAL
@@ -313,12 +315,14 @@ All 10 specialized agents have been upgraded from `gemini-2.0-flash` to `gemini-
   - 🟢 Light traffic: 10 AM - 5 PM, 7 PM - 10 PM (normal estimates)
   - 🟠 Moderate traffic: 7 AM - 10 AM, 5 PM - 7 PM (adds 30% time buffer)
 - **Example Output**:
-  ```
+
+  ```plain
   📍 **Travel Information:**
   - Distance: 3.4 km
   - Estimated travel time: **7 minutes** (light traffic 🟢)
   - Currently open until: Closes 11 PM
   ```
+
 - **User Impact**: Users can make informed decisions about whether they have time to visit
 
 **Feature: Automatic Discovery + Composition** ✅ NEW
@@ -578,6 +582,7 @@ pipenv run python test/validate_timezone_api.py
 ```
 
 This script will:
+
 - ✅ Check if Google Time Zone API is enabled
 - ✅ Verify timezonefinder library is installed
 - ✅ Test timezone lookup for Taipei
@@ -585,6 +590,7 @@ This script will:
 - ✅ Provide specific fix instructions if needed
 
 **Current Status (System Validated)**:
+
 - Google Time Zone API: `REQUEST_DENIED` (Not currently enabled)
 - timezonefinder library: ✅ **WORKING** (Primary fallback, fully functional)
 - UTC fallback: ✅ **AVAILABLE**
@@ -592,11 +598,13 @@ This script will:
 ### Issue: "REQUEST_DENIED" for Google Time Zone API
 
 **What it means:**
+
 - Google Time Zone API is NOT enabled in your Google Cloud Console
 - System automatically uses timezonefinder fallback instead
 
 **Is this a problem?**
 ❌ **NO** - System works perfectly with timezonefinder!
+
 - ✅ Timezone detection is accurate
 - ✅ No API key permission needed
 - ✅ No usage quota issues
@@ -615,7 +623,8 @@ This script will:
 **After enabling**, system will automatically use Google API (faster) instead of timezonefinder.
 
 **Fallback Chain** (Automatic):
-```
+
+```plain
 ✓ Try Google Time Zone API
     ↓ (if not enabled, connection fails, etc.)
 ✓ Try timezonefinder library (working)
