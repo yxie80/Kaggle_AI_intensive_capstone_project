@@ -549,6 +549,141 @@ class GooglePlacesClient:
             pass
         
         return None
+    
+    def get_timezone(self, latitude: float, longitude: float) -> Optional[Dict[str, Any]]:
+        """
+        Get timezone information for a given latitude/longitude.
+        Primary: Google Time Zone API (if enabled)
+        Fallback: timezonefinder library (open-source, no API key needed)
+        Final Fallback: UTC timezone
+        
+        Args:
+            latitude: Latitude coordinate
+            longitude: Longitude coordinate
+            
+        Returns:
+            Dict with timezone_id, timezone_name, and current_time
+        """
+        from datetime import datetime, timezone
+        import pytz
+        
+        # Try Google Time Zone API first
+        url = "https://maps.googleapis.com/maps/api/timezone/json"
+        timestamp = int(datetime.now(timezone.utc).timestamp())
+        
+        params = {
+            "location": f"{latitude},{longitude}",
+            "timestamp": timestamp,
+            "key": self.api_key
+        }
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get("status") == "OK":
+                timezone_id = data.get("timeZoneId")
+                tz = pytz.timezone(timezone_id)
+                local_time = datetime.now(tz)
+                
+                print(f"✓ Timezone from Google API: {timezone_id}")
+                
+                return {
+                    "timezone_id": timezone_id,
+                    "timezone_name": data.get("timeZoneName"),
+                    "current_time": local_time.isoformat(),
+                    "current_hour": local_time.hour,
+                    "current_time_str": local_time.strftime("%I:%M %p"),
+                    "source": "google_timezone_api"
+                }
+            else:
+                # API returned error - use fallback
+                print(f"⚠️  Google Time Zone API: {data.get('status')} - Using fallback...")
+                return self._get_timezone_fallback(latitude, longitude)
+            
+        except requests.exceptions.Timeout:
+            print(f"⚠️  Google Time Zone API timeout - Using fallback...")
+            return self._get_timezone_fallback(latitude, longitude)
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️  Google Time Zone API connection failed - Using fallback...")
+            return self._get_timezone_fallback(latitude, longitude)
+        except Exception as e:
+            print(f"⚠️  Error with Google Time Zone API: {e} - Using fallback...")
+            return self._get_timezone_fallback(latitude, longitude)
+    
+    def _get_timezone_fallback(self, latitude: float, longitude: float) -> Optional[Dict[str, Any]]:
+        """
+        Fallback timezone lookup using timezonefinder library.
+        Provides accurate timezone without requiring Google API.
+        
+        Args:
+            latitude: Latitude coordinate
+            longitude: Longitude coordinate
+            
+        Returns:
+            Dict with timezone info, or UTC if all methods fail
+        """
+        try:
+            from timezonefinder import TimezoneFinder
+            from datetime import datetime
+            import pytz
+            
+            # Try to find timezone using coordinates
+            tf = TimezoneFinder()
+            timezone_id = tf.timezone_at(lat=latitude, lng=longitude)
+            
+            if not timezone_id:
+                print(f"⚠️  Could not determine timezone for coordinates ({latitude}, {longitude})")
+                return self._get_timezone_utc_fallback()
+            
+            # Get current time in that timezone
+            tz = pytz.timezone(timezone_id)
+            local_time = datetime.now(tz)
+            
+            print(f"✓ Timezone from timezonefinder: {timezone_id}")
+            
+            return {
+                "timezone_id": timezone_id,
+                "timezone_name": timezone_id,
+                "current_time": local_time.isoformat(),
+                "current_hour": local_time.hour,
+                "current_time_str": local_time.strftime("%I:%M %p"),
+                "source": "timezonefinder_fallback"
+            }
+            
+        except ImportError:
+            print(f"⚠️  timezonefinder library not available")
+            return self._get_timezone_utc_fallback()
+        except Exception as e:
+            print(f"⚠️  Timezone fallback error: {e}")
+            return self._get_timezone_utc_fallback()
+    
+    def _get_timezone_utc_fallback(self) -> Dict[str, Any]:
+        """
+        Final fallback: Use UTC timezone.
+        Used when all other methods fail.
+        System continues working with UTC time (non-ideal but functional).
+        
+        Returns:
+            Dict with UTC timezone info
+        """
+        from datetime import datetime
+        import pytz
+        
+        tz = pytz.UTC
+        local_time = datetime.now(tz)
+        
+        print(f"⚠️  Falling back to UTC timezone (not location-specific)")
+        
+        return {
+            "timezone_id": "UTC",
+            "timezone_name": "UTC",
+            "current_time": local_time.isoformat(),
+            "current_hour": local_time.hour,
+            "current_time_str": local_time.strftime("%I:%M %p"),
+            "source": "utc_fallback"
+        }
 
 
 def calculate_distance(

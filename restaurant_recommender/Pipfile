@@ -9,6 +9,7 @@ python-dotenv = "*"
 ipython = "*"
 requests = "*"
 google-genai = "*"
+timezonefinder = "*"
 
 [dev-packages]
 

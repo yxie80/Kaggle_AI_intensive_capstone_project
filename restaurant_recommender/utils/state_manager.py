@@ -14,6 +14,8 @@ class ConversationState:
     
     # User inputs collected
     location: Optional[Dict[str, float]] = None  # {lat, lng}
+    timezone_id: Optional[str] = None  # IANA timezone ID (e.g., 'Australia/Melbourne')
+    location_time: Optional[str] = None  # ISO format datetime in location's timezone
     energy_level: Optional[int] = None
     budget_level: Optional[int] = None
     group_size: Optional[int] = None
@@ -40,9 +42,21 @@ class ConversationState:
         """Update last_updated timestamp"""
         self.last_updated = datetime.now().isoformat()
     
-    def set_location(self, lat: float, lng: float) -> None:
-        """Set user location"""
+    def set_location(self, lat: float, lng: float, timezone_id: Optional[str] = None, location_time: Optional[str] = None) -> None:
+        """
+        Set user location and optionally timezone information
+        
+        Args:
+            lat: Latitude
+            lng: Longitude
+            timezone_id: IANA timezone ID (e.g., 'Australia/Melbourne')
+            location_time: ISO format datetime in location's timezone
+        """
         self.location = {"lat": lat, "lng": lng}
+        if timezone_id:
+            self.timezone_id = timezone_id
+        if location_time:
+            self.location_time = location_time
         self.update_timestamp()
     
     def set_energy_level(self, energy: int) -> None:
